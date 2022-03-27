@@ -2,7 +2,6 @@ import requests
 import fake_useragent
 import os
 import pickle
-import http.cookiejar as cookielib
 
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup as BS
@@ -13,7 +12,7 @@ main_page_link = "https://kino.pub"
 
 
 def parse_csrf(response):
-    key = BS(response, 'html.parser')
+    key = BS(response.content, 'html.parser')
     for el in key.select("meta"):
         if "csrf-token" in str(el):
             end_index = str(el).find("csrf-token")
@@ -34,7 +33,6 @@ class App:
         }
 
         self.session = requests.Session()
-        self.session.cookie = cookielib.LWPCookieJar()
         self.login_username = os.getenv("kinopub_login")
         self.login_password = os.getenv("kinopub_pass")
 
@@ -50,22 +48,23 @@ class App:
             self.session.cookies.update(pickle.load(f))
 
     def post_request(self, link, data):
-        response = self.session.post(link, data=data, headers=self.header).text
+        response = self.session.post(link, data=data, headers=self.header)
         return response
 
     def get_request(self, link):
-        response = self.session.get(link, headers=self.header).text
+        response = self.session.get(link, headers=self.header)
         return response
 
-    def login(self):
-        self.load_cookies()
+    def login(self, new_login=False):
+        if not new_login:
+            self.load_cookies()
 
-        response = self.session.get(main_page_link, headers=self.header)
+        response = self.get_request(main_page_link)
         soup = BS(response.content, 'html.parser')
         dropdown_menu = soup.find("div", class_=["dropdown-menu", "dropdown-menu-right"])
         profile_link = dropdown_menu.select_one("a").get("href")
 
-        response = self.session.get(main_page_link + profile_link, headers=self.header)
+        response = self.get_request(main_page_link + profile_link)
         soup = BS(response.content, 'html.parser')
         user_info_block = soup.find("div", class_=["p-l-md", "no-padding-xs"])
         user_email_div = user_info_block.select_one("div").text
@@ -104,13 +103,12 @@ class App:
             "login-form[formcode]": login_code
         }
 
-        response = self.post_request(login_link, second_login_data)
-        main_page = self.get_request(main_page_link)
-
+        self.post_request(login_link, second_login_data)
         self.save_cookies()
+        self.login(True)
 
     def parse_movies(self):
-        response = self.session.get(f"{main_page_link}/watchlist/{self.username}", headers=self.header)
+        response = self.get_request(f"{main_page_link}/watchlist/{self.username}")
         soup = BS(response.content, "html.parser")
         items_block = soup.find("div", class_="page-content")
         items_div = items_block.findAll("div")
