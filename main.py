@@ -2,6 +2,7 @@ import requests
 import fake_useragent
 import os
 import pickle
+import re
 
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup as BS
@@ -135,6 +136,32 @@ class App:
                                 "KinoPoisk_Link": kp_link})
         return movies_list
 
+    def get_subs(self, movie_link):
+        movie_page = self.get_request(movie_link)
+        soup = BS(movie_page.content, "html.parser")
+        page_content = soup.find("div", class_="page-content")
+        hls4 = page_content.select_one("div > .m-t > div > div > ul > li:nth-child(10) > a").get("href")
+
+        host = hls4[:hls4.find("/hls")]
+
+        request_link = self.get_request(hls4)
+        start = request_link.text.find('NAME="RUS')
+        request_link_formatted = request_link.text[start+20:start+174]
+        result = self.get_request(host + request_link_formatted).text
+
+        subs_links = []
+        while result.find("https") != -1:
+            start = result.find("https")
+            result = result[start:]
+            end = result.find(".vtt") + 4
+            subs_links.append(result[:end])
+            result = result[end:]
+
+        with open("subs.vtt", "wb") as subs_file:
+            for link in subs_links:
+                subs = self.get_request(link).content
+                subs_file.write(subs)
+
     def run(self):
         while True:
             action = int(input("Enter the action:\n"
@@ -155,7 +182,7 @@ class App:
         while True:
             action = int(input("Enter the action:\n"
                                "1 - Watchlist\n"
-                               "2 - Exit\n"))
+                               "2 - Download subtitles\n"))
             # Movies List From WatchList
             if action == 1:
                 movies_list = self.parse_movies()
@@ -180,6 +207,20 @@ class App:
                         file.write(dash)
                 print("-------------------------------------------------------------------------")
             elif action == 2:
+                movie_link = input("Enter movie link: ")
+                is_series = input("Is is series? y for yes, n for no: ")
+                yes = ["y", "Y", "yes", "Yes", "YES"]
+                if is_series in yes:
+                    season = int(input("Enter a number of season: "))
+                    episode = int(input("Enter a number of episode: "))
+
+                    start = movie_link.find("view/") + 5
+                    movie_id = movie_link[start:start+4]
+
+                    self.get_subs(f"https://kino.pub/item/view/{movie_id}/s{season}e{episode}")
+                else:
+                    self.get_subs(movie_link)
+            else:
                 exit()
 
 
