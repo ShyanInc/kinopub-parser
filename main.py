@@ -2,11 +2,10 @@ import requests
 import fake_useragent
 import os
 import pickle
-import re
+import subtitles_reader as sr
 
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup as BS
-
 
 login_link = "https://kino.pub/user/login"
 main_page_link = "https://kino.pub"
@@ -19,8 +18,7 @@ def parse_csrf(response):
             end_index = str(el).find("csrf-token")
             start_index = end_index - 96
             csrf_key = str(el)[start_index:end_index - 8]
-            break
-    return csrf_key
+            return csrf_key
 
 
 class App:
@@ -39,6 +37,8 @@ class App:
 
         self.username = None
         self.email = None
+
+        self.yes = ["y", "Y", "yes", "Yes", "YES"]
 
     def save_cookies(self, filename="cookies.txt"):
         with open(filename, 'wb') as f:
@@ -163,6 +163,7 @@ class App:
                 subs_file.write(subs)
 
     def run(self):
+
         while True:
             action = int(input("Enter the action:\n"
                                "1 - Login via cookies\n"
@@ -182,14 +183,18 @@ class App:
         while True:
             action = int(input("Enter the action:\n"
                                "1 - Watchlist\n"
-                               "2 - Download subtitles\n"))
+                               "2 - Download subtitles\n"
+                               "3 - Play subtitles\n"
+                               "4 - Exit\n"))
             # Movies List From WatchList
             if action == 1:
                 movies_list = self.parse_movies()
                 dash = "-------------------------------------------------------------------------\n"
-                is_save = bool(input("Save the result to file? 1 for yes, 0 for no:"))
+                is_save = input("Save the result to file? y for yes, n for no:")
+                movies_info = ""
                 if is_save:
-                    open("movies.txt", "w")
+                    new_file = open("movies.txt", "w")
+                    new_file.close()
                 for movie in movies_list:
                     movie_info = dash + \
                           f"Name: {movie['Name']}\n" \
@@ -198,28 +203,30 @@ class App:
                           f"KinoPub Link: {movie['KinoPub_Link']}\n" \
                           f"KinoPoisk Link: {movie['KinoPoisk_Link']}\n"
                     print(movie_info, end="")
-                    if is_save:
-                        with open("movies.txt", "a") as file:
-                            file.write(movie_info)
+                    if is_save in self.yes:
+                        movies_info += movie_info
 
-                if is_save:
-                    with open("movies.txt", "a") as file:
+                if is_save in self.yes:
+                    with open("movies.txt", "w", encoding="utf-8") as file:
+                        file.write(movies_info)
                         file.write(dash)
                 print("-------------------------------------------------------------------------")
             elif action == 2:
                 movie_link = input("Enter movie link: ")
                 is_series = input("Is is series? y for yes, n for no: ")
-                yes = ["y", "Y", "yes", "Yes", "YES"]
-                if is_series in yes:
+                if is_series in self.yes:
                     season = int(input("Enter a number of season: "))
                     episode = int(input("Enter a number of episode: "))
 
                     start = movie_link.find("view/") + 5
-                    movie_id = movie_link[start:start+4]
-
+                    end = movie_link[start:].find("/")
+                    movie_id = movie_link[start:start+end]
+                    print(movie_id, season, episode)
                     self.get_subs(f"https://kino.pub/item/view/{movie_id}/s{season}e{episode}")
                 else:
                     self.get_subs(movie_link)
+            elif action == 3:
+                sr.run()
             else:
                 exit()
 

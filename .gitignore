@@ -1,5 +1,9 @@
+build
+dist
 .env
 .idea
+*.spec
+install.py
 cookies.txt
 movies.txt
 subs.vtt
